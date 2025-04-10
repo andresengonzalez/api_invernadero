@@ -9,9 +9,6 @@ app = Flask(__name__)
 def home():
     return "API Flask en Render funcionando", 200
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
-
 # Intentar conectar a PostgreSQL y manejar errores
 try:
     DB_URL = os.getenv("DATABASE_URL")
@@ -44,6 +41,16 @@ def recibir_datos():
         wind_speed = (decoded_bytes[15] << 8 | decoded_bytes[16]) / 10
         rainfall = (decoded_bytes[18] << 24 | decoded_bytes[19] << 16 | decoded_bytes[20] << 8 | decoded_bytes[21]) / 100
 
+        # 🔍 Imprimir los valores antes de insertarlos en la base de datos
+        print(f"📌 Datos decodificados:")
+        print(f"   - Batería: {battery}%")
+        print(f"   - Temperatura: {temp}°C")
+        print(f"   - Humedad: {humidity}%")
+        print(f"   - Dirección del viento: {wind_dir}°")
+        print(f"   - Presión: {pressure} hPa")
+        print(f"   - Velocidad del viento: {wind_speed} m/s")
+        print(f"   - Lluvia acumulada: {rainfall} mm")
+
         sql_query = """
             INSERT INTO registros (bateria, temperatura, humedad, viento_direccion, presion, viento_velocidad, lluvia)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -58,11 +65,11 @@ def recibir_datos():
     except psycopg2.Error as e:
         conn.rollback()  # Revertir la transacción en caso de error
         print("❌ Error en la base de datos:", e)
-        return jsonify({"error": "Error al insertar en la base de datos"}), 500
+        return jsonify({"error": f"Error en la base de datos: {str(e)}"}), 500
 
     except Exception as e:
         print("❌ Error general:", e)
-        return jsonify({"error": "Error interno en el servidor"}), 500
+        return jsonify({"error": f"Error interno en el servidor: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
