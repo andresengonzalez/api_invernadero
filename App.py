@@ -33,15 +33,35 @@ def recibir_datos():
 
         # Decodificar los datos
         decoded_bytes = base64.b64decode(payload_base64)
-        battery = decoded_bytes[2]
-        temp = (decoded_bytes[4] << 8 | decoded_bytes[5]) / 10
-        humidity = decoded_bytes[7] / 2
-        wind_dir = (decoded_bytes[9] << 8 | decoded_bytes[10]) / 10
-        pressure = (decoded_bytes[12] << 8 | decoded_bytes[13]) / 10
-        wind_speed = (decoded_bytes[15] << 8 | decoded_bytes[16]) / 10
-        rainfall = (decoded_bytes[18] << 24 | decoded_bytes[19] << 16 | decoded_bytes[20] << 8 | decoded_bytes[21]) / 100
 
-        # 🔍 Imprimir los valores antes de insertarlos en la base de datos
+        # Asegurar que los datos decodificados tengan la longitud esperada
+        if len(decoded_bytes) < 22:
+            return jsonify({"error": "Payload inválido, tamaño incorrecto"}), 400
+
+        # Extraer valores con corrección de índices
+        battery = decoded_bytes[2]
+        temp = ((decoded_bytes[4] << 8) | decoded_bytes[5]) / 10
+        humidity = decoded_bytes[7] / 2
+        wind_dir = ((decoded_bytes[9] << 8) | decoded_bytes[10]) / 10
+        pressure = ((decoded_bytes[12] << 8) | decoded_bytes[13]) / 10
+        wind_speed = ((decoded_bytes[15] << 8) | decoded_bytes[16]) / 10
+        rainfall = ((decoded_bytes[18] << 24) | (decoded_bytes[19] << 16) | (decoded_bytes[20] << 8) | decoded_bytes[21]) / 100
+
+        # Validar valores dentro de rangos normales
+        if not (0 <= temp <= 60):
+            temp = None
+        if not (0 <= humidity <= 100):
+            humidity = None
+        if not (0 <= wind_dir <= 360):
+            wind_dir = None
+        if not (900 <= pressure <= 1100):
+            pressure = None
+        if not (0 <= wind_speed <= 100):
+            wind_speed = None
+        if not (0 <= rainfall <= 1000):
+            rainfall = None
+
+        # 🔍 Imprimir valores corregidos antes de insertarlos
         print(f"📌 Datos decodificados:")
         print(f"   - Batería: {battery}%")
         print(f"   - Temperatura: {temp}°C")
