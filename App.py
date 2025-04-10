@@ -5,6 +5,13 @@ import base64
 
 app = Flask(__name__)
 
+@app.route('/', methods=['GET'])
+def home():
+    return "API Flask en Render funcionando", 200
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+
 # Conectar a PostgreSQL usando la variable de entorno
 DB_URL = os.getenv("DATABASE_URL")  # Recuperar la URL desde Render
 conn = psycopg2.connect(DB_URL)
