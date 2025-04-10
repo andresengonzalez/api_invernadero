@@ -12,60 +12,57 @@ def home():
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
 
-# Conectar a PostgreSQL usando la variable de entorno
-DB_URL = os.getenv("DATABASE_URL")  # Recuperar la URL desde Render
-conn = psycopg2.connect(DB_URL)
-cursor = conn.cursor()
-
-def decode_payload(base64_payload):
-    decoded_bytes = base64.b64decode(base64_payload)
-    battery = decoded_bytes[2]
-    temp = (decoded_bytes[4] << 8 | decoded_bytes[5]) / 10
-    humidity = decoded_bytes[7] / 2
-    wind_dir = (decoded_bytes[9] << 8 | decoded_bytes[10]) / 10
-    pressure = (decoded_bytes[12] << 8 | decoded_bytes[13]) / 10
-    wind_speed = (decoded_bytes[15] << 8 | decoded_bytes[16]) / 10
-    rainfall = (decoded_bytes[18] << 24 | decoded_bytes[19] << 16 | decoded_bytes[20] << 8 | decoded_bytes[21]) / 100
-
-    return {
-        "bateria": battery,
-        "temperatura": temp,
-        "humedad": humidity,
-        "viento_direccion": wind_dir,
-        "presion": pressure,
-        "viento_velocidad": wind_speed,
-        "lluvia": rainfall
-    }
+# Intentar conectar a PostgreSQL y manejar errores
+try:
+    DB_URL = os.getenv("DATABASE_URL")
+    conn = psycopg2.connect(DB_URL)
+    cursor = conn.cursor()
+    print("Conexión exitosa a la base de datos")
+except Exception as e:
+    print("❌ Error conectando a la base de datos:", e)
+    conn = None
 
 @app.route('/datos', methods=['POST'])
 def recibir_datos():
-    data = request.json
-    payload_base64 = data.get("payload", "")
+    if not conn:
+        return jsonify({"error": "No hay conexión a la base de datos"}), 500
 
-    if not payload_base64:
-        return jsonify({"error": "No se recibió payload"}), 400
+    try:
+        data = request.json
+        payload_base64 = data.get("payload", "")
 
-    datos_decodificados = decode_payload(payload_base64)
+        if not payload_base64:
+            return jsonify({"error": "No se recibió payload"}), 400
 
-    sql_query = """
-        INSERT INTO registros (bateria, temperatura, humedad, viento_direccion, presion, viento_velocidad, lluvia)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-    """
-    
-    valores = (
-        datos_decodificados["bateria"],
-        datos_decodificados["temperatura"],
-        datos_decodificados["humedad"],
-        datos_decodificados["viento_direccion"],
-        datos_decodificados["presion"],
-        datos_decodificados["viento_velocidad"],
-        datos_decodificados["lluvia"]
-    )
+        # Decodificar los datos
+        decoded_bytes = base64.b64decode(payload_base64)
+        battery = decoded_bytes[2]
+        temp = (decoded_bytes[4] << 8 | decoded_bytes[5]) / 10
+        humidity = decoded_bytes[7] / 2
+        wind_dir = (decoded_bytes[9] << 8 | decoded_bytes[10]) / 10
+        pressure = (decoded_bytes[12] << 8 | decoded_bytes[13]) / 10
+        wind_speed = (decoded_bytes[15] << 8 | decoded_bytes[16]) / 10
+        rainfall = (decoded_bytes[18] << 24 | decoded_bytes[19] << 16 | decoded_bytes[20] << 8 | decoded_bytes[21]) / 100
 
-    cursor.execute(sql_query, valores)
-    conn.commit()
+        sql_query = """
+            INSERT INTO registros (bateria, temperatura, humedad, viento_direccion, presion, viento_velocidad, lluvia)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """
+        
+        valores = (battery, temp, humidity, wind_dir, pressure, wind_speed, rainfall)
+        cursor.execute(sql_query, valores)
+        conn.commit()  # Confirmar la transacción
 
-    return jsonify({"mensaje": "Datos guardados exitosamente", "datos": datos_decodificados}), 200
+        return jsonify({"mensaje": "Datos guardados exitosamente"}), 200
+
+    except psycopg2.Error as e:
+        conn.rollback()  # Revertir la transacción en caso de error
+        print("❌ Error en la base de datos:", e)
+        return jsonify({"error": "Error al insertar en la base de datos"}), 500
+
+    except Exception as e:
+        print("❌ Error general:", e)
+        return jsonify({"error": "Error interno en el servidor"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
