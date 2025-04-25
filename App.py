@@ -19,7 +19,8 @@ def recibir_datos():
         
         data = request.json
         payload_base64 = data.get("payload", "")
-
+        print(f"Datos recibidos: {data}")
+        
         if not payload_base64:
             return jsonify({"error": "No se recibió payload"}), 400
 
