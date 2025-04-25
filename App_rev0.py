@@ -9,14 +9,22 @@ app = Flask(__name__)
 def home():
     return "API Flask en Render funcionando", 200
 
+# Intentar conectar a PostgreSQL y manejar errores
+try:
+    DB_URL = os.getenv("DATABASE_URL")
+    conn = psycopg2.connect(DB_URL)
+    cursor = conn.cursor()
+    print("Conexión exitosa a la base de datos")
+except Exception as e:
+    print("❌ Error conectando a la base de datos:", e)
+    conn = None
 
 @app.route('/datos', methods=['POST'])
 def recibir_datos():
+    if not conn:
+        return jsonify({"error": "No hay conexión a la base de datos"}), 500
+
     try:
-        DB_URL = os.getenv("DATABASE_URL")
-        conn = psycopg2.connect(DB_URL)
-        cursor = conn.cursor()
-        
         data = request.json
         payload_base64 = data.get("payload", "")
 
@@ -75,19 +83,18 @@ def recibir_datos():
         
         valores = (battery, temp, humidity, wind_dir, pressure, wind_speed, rainfall)
         cursor.execute(sql_query, valores)
-        conn.commit()
+        conn.commit()  # Confirmar la transacción
 
         return jsonify({"mensaje": "Datos guardados exitosamente"}), 200
 
-    except Exception as e:
-        print("❌ Error:", e)
-        return jsonify({"error": f"Error interno: {str(e)}"}), 500
+    except psycopg2.Error as e:
+        conn.rollback()  # Revertir la transacción en caso de error
+        print("❌ Error en la base de datos:", e)
+        return jsonify({"error": f"Error en la base de datos: {str(e)}"}), 500
 
-    finally:
-        if 'cursor' in locals():
-            cursor.close()
-        if 'conn' in locals():
-            conn.close()
+    except Exception as e:
+        print("❌ Error general:", e)
+        return jsonify({"error": f"Error interno en el servidor: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
