@@ -7,7 +7,7 @@ from io import StringIO
 from datetime import datetime, timedelta, date
 from flask import Flask, request, jsonify, Response
 
-# Opcional: carga .env en local (pip install python-dotenv)
+# (Opcional) .env en local
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -19,22 +19,18 @@ app = Flask(__name__)
 # --- Config ---
 DB_URL = os.getenv("DATABASE_URL")
 if not DB_URL:
-    raise RuntimeError("DATABASE_URL no está definida en las variables de entorno.")
+    raise RuntimeError("DATABASE_URL no está definida.")
 
-# Columna de timestamp para filtrar por fechas (por defecto created_at)
-TIMESTAMP_COL = os.getenv("TIMESTAMP_COL", "created_at")
-# Sanear el nombre de columna (evitar inyección vía env var)
+# Columna de fecha para filtrar (tu tabla la llama 'fecha')
+TIMESTAMP_COL = os.getenv("TIMESTAMP_COL", "fecha")
 if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", TIMESTAMP_COL):
-    raise ValueError("TIMESTAMP_COL contiene caracteres inválidos.")
+    raise ValueError("TIMESTAMP_COL inválida.")
 
-# --- Helpers DB ---
 def get_conn():
     return psycopg2.connect(DB_URL)
 
-# --- UI muy simple ---
 @app.get("/")
 def index():
-    # Valores por defecto: últimos 7 días
     today = date.today()
     default_end = today
     default_start = today - timedelta(days=7)
@@ -75,29 +71,23 @@ def index():
     """
     return html, 200
 
-# --- Endpoint que genera y devuelve el CSV ---
 @app.get("/export")
 def export_csv():
     try:
         start_str = request.args.get("start")
         end_str = request.args.get("end")
-
-        # Validación básica
         if not start_str or not end_str:
-            return jsonify({"error": "Faltan parámetros 'start' y/o 'end' (YYYY-MM-DD)."}), 400
+            return jsonify({"error": "Faltan 'start' y/o 'end' (YYYY-MM-DD)."}), 400
 
-        # Parseo de fechas (YYYY-MM-DD)
         start_date = datetime.strptime(start_str, "%Y-%m-%d").date()
         end_date = datetime.strptime(end_str, "%Y-%m-%d").date()
-
         if end_date < start_date:
-            return jsonify({"error": "La fecha 'Hasta' no puede ser menor que 'Desde'."}), 400
+            return jsonify({"error": "'Hasta' no puede ser menor que 'Desde'."}), 400
 
-        # Rango: [start, end + 1 día) para incluir todo el día 'end'
+        # [start, end + 1 día) para incluir el día completo 'end'
         start_dt = datetime.combine(start_date, datetime.min.time())
         end_dt_exclusive = datetime.combine(end_date + timedelta(days=1), datetime.min.time())
 
-        # Query
         sql = f"""
             SELECT {TIMESTAMP_COL}, bateria, temperatura, humedad,
                    viento_direccion, presion, viento_velocidad, lluvia
@@ -111,7 +101,6 @@ def export_csv():
                 cur.execute(sql, (start_dt, end_dt_exclusive))
                 rows = cur.fetchall()
 
-        # Generar CSV en memoria
         output = StringIO()
         writer = csv.writer(output)
         writer.writerow([TIMESTAMP_COL, "bateria", "temperatura", "humedad",
@@ -128,19 +117,15 @@ def export_csv():
         print("❌ Error export_csv:", e)
         return jsonify({"error": f"Error interno: {str(e)}"}), 500
 
-# --- Tu endpoint existente para insertar datos ---
 @app.post("/datos")
 def recibir_datos():
     try:
         data = request.json or {}
         payload_base64 = data.get("data", "")
-
         if not payload_base64:
             return jsonify({"error": "No se recibió payload"}), 400
 
         decoded = base64.b64decode(payload_base64)
-
-        # Nota: accedes hasta decoded[27], así que asegúrate de longitud >= 28
         if len(decoded) < 28:
             return jsonify({"error": "Payload inválido, tamaño incorrecto"}), 400
 
@@ -157,7 +142,6 @@ def recibir_datos():
         rainfall_raw = int.from_bytes(decoded[24:28], byteorder='little')
         rainfall = rainfall_raw / 100
 
-        # Validaciones
         if not (0 <= temp <= 60): temp = None
         if not (0 <= humidity <= 100): humidity = None
         if not (0 <= wind_dir <= 360): wind_dir = None
@@ -165,9 +149,9 @@ def recibir_datos():
         if not (0 <= wind_speed <= 100): wind_speed = None
         if not (0 <= rainfall <= 1000): rainfall = None
 
-        print("📌 Datos decodificados:",
-              f"batería={battery}, temp={temp}, hum={humidity}, dir={wind_dir},",
-              f"pres={pressure}, viento={wind_speed}, lluvia={rainfall}")
+        print("📌 Decodificado:",
+              f"bateria={battery}, temp={temp}, hum={humidity}, dir={wind_dir},",
+              f"presion={pressure}, viento={wind_speed}, lluvia={rainfall}")
 
         sql_insert = """
             INSERT INTO registros (bateria, temperatura, humedad, viento_direccion, presion, viento_velocidad, lluvia)
@@ -186,7 +170,5 @@ def recibir_datos():
         print("❌ Error /datos:", e)
         return jsonify({"error": f"Error interno: {str(e)}"}), 500
 
-# --- Desarrollo local ---
 if __name__ == "__main__":
-    # En Render usas gunicorn App:app; este bloque es para dev local
     app.run(host="0.0.0.0", port=5000)
