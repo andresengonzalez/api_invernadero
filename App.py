@@ -53,6 +53,19 @@ def index():
       </style>
     </head>
     <body>
+      <!-- Banner superior (752x133) -->
+    <img
+        src="https://blogger.googleusercontent.com/img/a/AVvXsEg7vu2GoOAxesJsWQco2WgzFlF9PA0-65l8CnCXEZPUQOetICta5v4Lo0iqh3m6m-JlbBzGxFWN0fLkTnz7kcLsGpeSvH_FJ2lbHs6v4DkSzQazoRNQVZPi1EijFGX6e2gSqtdzn6fYnh5QllXnMffcVSgziWzLvIdZ6gGa4vrJ6mR3avL96MHUbKrsNTjV=s752"
+        alt="Banner"
+        width="752"
+        height="133"
+        style="display:block;max-width:100%;height:auto;margin:0 auto 16px;"
+    />
+
+    <!-- Título principal -->
+    <h1 style="text-align:center; font-size:32px; margin-bottom:24px;">
+        Registros Estación Meteorológica CEET - SENA, Distrito Capital
+    </h1>
       <div class="card">
         <h2>Descargar CSV de registros</h2>
         <form action="/export" method="get">
